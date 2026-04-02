@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  api-gateway:
+    build: .
+    container_name: api-gateway
+    ports:
+      - "8000:80"
+    environment:
+      TICKET_SERVICE_URL: http://host.docker.internal:8100/api
+    depends_on:
+      - ticket-service

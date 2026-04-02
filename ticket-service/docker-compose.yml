@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  ticket-service:
+    build: .
+    container_name: ticket-service
+    ports:
+      - "8100:80"
+    environment:
+      DB_HOST: ticket-db
+      DB_DATABASE: ticket_service
+      DB_USERNAME: user
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+    depends_on:
+      - ticket-db
+      - redis
+
+  ticket-db:
+    image: mysql:8.0
+    container_name: ticket-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: ticket_service
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"

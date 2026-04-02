@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  notification-service:
+    build: .
+    container_name: notification-service
+    ports:
+      - "8200:80"
+    environment:
+      REDIS_HOST: redis
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: notification-redis
+    ports:
+      - "6380:6379"

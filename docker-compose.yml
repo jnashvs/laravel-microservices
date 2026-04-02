@@ -1,0 +1,107 @@
+version: "3.8"
+
+services:
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8000:80"
+    environment:
+      APP_ENV: local
+      APP_KEY: ${API_GATEWAY_APP_KEY}
+      TICKET_SERVICE_URL: http://ticket-service:80/api
+      NOTIFICATION_SERVICE_URL: http://notification-service:80/api
+    depends_on:
+      ticket-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - microservices
+
+  ticket-service:
+    build: ./ticket-service
+    container_name: ticket-service
+    ports:
+      - "8100:80"
+    environment:
+      APP_ENV: local
+      APP_KEY: ${TICKET_SERVICE_APP_KEY}
+      DB_CONNECTION: mysql
+      DB_HOST: ticket-db
+      DB_PORT: 3306
+      DB_DATABASE: tickets
+      DB_USERNAME: user
+      DB_PASSWORD: ${TICKET_DB_PASSWORD}
+      REDIS_HOST: redis
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
+    depends_on:
+      ticket-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/api/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - microservices
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8200:80"
+    environment:
+      APP_ENV: local
+      APP_KEY: ${NOTIFICATION_SERVICE_APP_KEY}
+      REDIS_HOST: redis
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan route:list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - microservices
+
+  ticket-db:
+    image: mysql:8.0
+    container_name: ticket-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: tickets
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+    volumes:
+      - ticket-db-data:/var/lib/mysql
+    networks:
+      - microservices
+    healthcheck:
+      test:
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-ppassword"]
+      interval: 10s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - microservices
+
+networks:
+  microservices:
+    driver: bridge
+
+volumes:
+  ticket-db-data:
