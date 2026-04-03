@@ -4,6 +4,7 @@ namespace Infrastructure\Listeners;
 
 use Domain\Ticket\Events\TicketCreated;
 use Illuminate\Support\Facades\Log;
+use Predis\Client;
 
 class LogTicketCreated
 {
@@ -19,19 +20,19 @@ class LogTicketCreated
         ]);
 
         try {
-            $redis = new \Predis\Client([
+            $redis = new Client([
                 'scheme' => 'tcp',
-                'host'   => env('REDIS_HOST', 'redis'),
-                'port'   => env('REDIS_PORT', 6379),
+                'host'   => config('database.redis.default.host', 'redis'),
+                'port'   => (int) config('database.redis.default.port', 6379),
             ]);
 
             $redis->publish('ticket.created', $payload);
 
-            Log::info('Ticket criado e publicado no Redis', [
+            Log::info('Ticket created and published to Redis', [
                 'id' => $event->ticket->getId(),
             ]);
         } catch (\Exception $e) {
-            Log::error('Falha ao publicar no Redis', [
+            Log::error('Failed to publish to Redis', [
                 'error' => $e->getMessage(),
             ]);
         }

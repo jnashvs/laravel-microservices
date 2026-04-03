@@ -2,34 +2,56 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Exceptions\ServiceUnavailableException;
+use App\Services\TicketServiceProxy;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Request;
 
 class TicketProxyController extends Controller
 {
-    private string $ticketServiceUrl;
-
-    public function __construct()
-    {
-        $this->ticketServiceUrl = rtrim(env('TICKET_SERVICE_URL', 'http://ticket-service:80/api'), '/');
+    public function __construct(
+        private readonly TicketServiceProxy $ticketService
+    ) {
     }
 
     public function store(Request $request): JsonResponse
     {
-        $response = Http::post("{$this->ticketServiceUrl}/tickets", $request->all());
-        return response()->json($response->json(), $response->status());
+        try {
+            $result = $this->ticketService->createTicket($request->all());
+
+            return response()->json($result['data'], $result['status']);
+        } catch (ServiceUnavailableException $e) {
+            return $this->serviceUnavailable($e);
+        }
     }
 
     public function index(): JsonResponse
     {
-        $response = Http::get("{$this->ticketServiceUrl}/tickets");
-        return response()->json($response->json(), $response->status());
+        try {
+            $result = $this->ticketService->listTickets();
+
+            return response()->json($result['data'], $result['status']);
+        } catch (ServiceUnavailableException $e) {
+            return $this->serviceUnavailable($e);
+        }
     }
 
     public function show(string $id): JsonResponse
     {
-        $response = Http::get("{$this->ticketServiceUrl}/tickets/{$id}");
-        return response()->json($response->json(), $response->status());
+        try {
+            $result = $this->ticketService->getTicket($id);
+
+            return response()->json($result['data'], $result['status']);
+        } catch (ServiceUnavailableException $e) {
+            return $this->serviceUnavailable($e);
+        }
+    }
+
+    private function serviceUnavailable(ServiceUnavailableException $e): JsonResponse
+    {
+        return response()->json([
+            'error' => 'Service Unavailable',
+            'message' => $e->getMessage(),
+        ], 503);
     }
 }

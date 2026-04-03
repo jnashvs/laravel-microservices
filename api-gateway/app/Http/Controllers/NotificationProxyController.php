@@ -2,21 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ServiceUnavailableException;
+use App\Services\NotificationServiceProxy;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Http;
 
 class NotificationProxyController extends Controller
 {
-    private string $notificationServiceUrl;
-
-    public function __construct()
-    {
-        $this->notificationServiceUrl = rtrim(env('NOTIFICATION_SERVICE_URL', 'http://notification-service:80/api'), '/');
+    public function __construct(
+        private readonly NotificationServiceProxy $notificationService
+    ) {
     }
 
     public function index(): JsonResponse
     {
-        $response = Http::get("{$this->notificationServiceUrl}/notifications");
-        return response()->json($response->json(), $response->status());
+        try {
+            $result = $this->notificationService->listNotifications();
+
+            return response()->json($result['data'], $result['status']);
+        } catch (ServiceUnavailableException $e) {
+            return response()->json([
+                'error' => 'Service Unavailable',
+                'message' => $e->getMessage(),
+            ], 503);
+        }
     }
 }
