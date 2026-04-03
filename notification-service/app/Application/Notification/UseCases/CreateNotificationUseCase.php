@@ -4,6 +4,7 @@ namespace Application\Notification\UseCases;
 
 use Domain\Notification\Entities\Notification;
 use Domain\Notification\Repositories\NotificationRepositoryInterface;
+use Illuminate\Support\Str;
 
 class CreateNotificationUseCase
 {
@@ -17,7 +18,7 @@ class CreateNotificationUseCase
     public function execute(string $type, string $message, string $referenceId): Notification
     {
         $notification = new Notification(
-            uniqid(),
+            Str::uuid()->toString(),
             $type,
             $message,
             $referenceId

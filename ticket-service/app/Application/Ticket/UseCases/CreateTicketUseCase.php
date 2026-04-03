@@ -4,34 +4,46 @@ namespace Application\Ticket\UseCases;
 
 use Domain\Ticket\Entities\Ticket;
 use Domain\Ticket\ValueObjects\Priority;
-use Domain\Ticket\ValueObjects\TicketStatus;
 use Domain\Ticket\Repositories\TicketRepositoryInterface;
-use Application\Ticket\DTOs\CreateTicketDTO;
+use Domain\Ticket\Events\EventDispatcherInterface;
 use Domain\Ticket\Events\TicketCreated;
-use Illuminate\Support\Facades\Event;
+use Application\Ticket\DTOs\CreateTicketData;
+use Application\Ticket\DTOs\TicketResponseData;
+use Application\Ticket\Exceptions\TicketCreationException;
+use Illuminate\Support\Facades\DB;
 
 class CreateTicketUseCase
 {
-    private TicketRepositoryInterface $repository;
-
-    public function __construct(TicketRepositoryInterface $repository)
-    {
-        $this->repository = $repository;
+    public function __construct(
+        private readonly TicketRepositoryInterface $repository,
+        private readonly EventDispatcherInterface $eventDispatcher
+    ) {
     }
 
-    public function execute(CreateTicketDTO $dto): Ticket
+    /**
+     * @throws TicketCreationException
+     */
+    public function execute(CreateTicketData $data): TicketResponseData
     {
-        $ticket = new Ticket(
-            uniqid(),
-            $dto->title,
-            $dto->description,
-            new Priority($dto->priority),
-            new TicketStatus(TicketStatus::OPEN)
-        );
+        try {
+            return DB::transaction(function () use ($data) {
+                $ticket = Ticket::create(
+                    $data->title,
+                    $data->description,
+                    new Priority($data->priority)
+                );
 
-        $this->repository->save($ticket);
-        Event::dispatch(new TicketCreated($ticket));
+                $this->repository->save($ticket);
 
-        return $ticket;
+                $this->eventDispatcher->dispatch(new TicketCreated($ticket));
+
+                return TicketResponseData::fromEntity($ticket);
+            });
+        } catch (\Exception $e) {
+            throw new TicketCreationException(
+                "Failed to create ticket: {$e->getMessage()}",
+                previous: $e
+            );
+        }
     }
 }

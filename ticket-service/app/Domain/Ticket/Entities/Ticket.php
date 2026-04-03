@@ -4,22 +4,48 @@ namespace Domain\Ticket\Entities;
 
 use Domain\Ticket\ValueObjects\Priority;
 use Domain\Ticket\ValueObjects\TicketStatus;
+use Illuminate\Support\Str;
 
 class Ticket
 {
-    private string $id;
-    private string $title;
-    private string $description;
-    private Priority $priority;
-    private TicketStatus $status;
+    private function __construct(
+        private readonly string $id,
+        private readonly string $title,
+        private readonly string $description,
+        private readonly Priority $priority,
+        private readonly TicketStatus $status,
+        private readonly string $createdAt,
+    ) {
+    }
 
-    public function __construct(string $id, string $title, string $description, Priority $priority, TicketStatus $status = null)
+    public static function create(string $title, string $description, Priority $priority): self
     {
-        $this->id = $id;
-        $this->title = $title;
-        $this->description = $description;
-        $this->priority = $priority;
-        $this->status = $status ?? new TicketStatus(TicketStatus::OPEN);
+        return new self(
+            id: Str::uuid()->toString(),
+            title: $title,
+            description: $description,
+            priority: $priority,
+            status: new TicketStatus(TicketStatus::OPEN),
+            createdAt: date('c'),
+        );
+    }
+
+    public static function fromPersistence(
+        string $id,
+        string $title,
+        string $description,
+        Priority $priority,
+        TicketStatus $status,
+        string $createdAt,
+    ): self {
+        return new self(
+            id: $id,
+            title: $title,
+            description: $description,
+            priority: $priority,
+            status: $status,
+            createdAt: $createdAt,
+        );
     }
 
     public function getId(): string
@@ -42,9 +68,8 @@ class Ticket
     {
         return $this->status;
     }
-
-    public function changeStatus(TicketStatus $status): void
+    public function getCreatedAt(): string
     {
-        $this->status = $status;
+        return $this->createdAt;
     }
 }

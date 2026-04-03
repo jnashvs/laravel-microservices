@@ -2,77 +2,58 @@
 
 namespace Infrastructure\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Application\Ticket\UseCases\CreateTicketUseCase;
 use Application\Ticket\UseCases\ListTicketsUseCase;
 use Application\Ticket\UseCases\GetTicketUseCase;
-use Application\Ticket\DTOs\CreateTicketDTO;
+use Application\Ticket\DTOs\CreateTicketData;
+use Application\Ticket\Exceptions\TicketCreationException;
+use Application\Ticket\Exceptions\TicketNotFoundException;
 
 class TicketController extends Controller
 {
     public function __construct(
-        private CreateTicketUseCase $createUseCase,
-        private ListTicketsUseCase $listUseCase,
-        private GetTicketUseCase $getUseCase
+        private readonly CreateTicketUseCase $createUseCase,
+        private readonly ListTicketsUseCase $listUseCase,
+        private readonly GetTicketUseCase $getUseCase
     ) {
-        $this->createUseCase = $createUseCase;
-        $this->listUseCase = $listUseCase;
-        $this->getUseCase = $getUseCase;
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(CreateTicketData $data): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'priority' => 'required|in:low,medium,high',
-        ]);
+        try {
+            $response = $this->createUseCase->execute($data);
 
-        $dto = new CreateTicketDTO($validated);
-        $ticket = $this->createUseCase->execute($dto);
-
-        return response()->json([
-            'id' => $ticket->getId(),
-            'title' => $ticket->getTitle(),
-            'description' => $ticket->getDescription(),
-            'priority' => $ticket->getPriority()->getValue(),
-            'status' => $ticket->getStatus()->getValue(),
-        ], 201);
+            return $response->toResponse(request())->setStatusCode(201);
+        } catch (TicketCreationException $e) {
+            return response()->json([
+                'error' => 'Failed to create ticket',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function index(): JsonResponse
     {
-        $tickets = $this->listUseCase->execute();
+        $responses = $this->listUseCase->execute();
 
-        $data = array_map(function ($ticket) {
-            return [
-                'id' => $ticket->getId(),
-                'title' => $ticket->getTitle(),
-                'description' => $ticket->getDescription(),
-                'priority' => $ticket->getPriority()->getValue(),
-                'status' => $ticket->getStatus()->getValue(),
-            ];
-        }, $tickets);
-
-        return response()->json($data);
+        return response()->json(
+            array_map(fn ($dto) => $dto->toArray(), $responses)
+        );
     }
 
     public function show(string $id): JsonResponse
     {
-        $ticket = $this->getUseCase->execute($id);
+        try {
+            $response = $this->getUseCase->execute($id);
 
-        if (!$ticket) {
-            return response()->json(['error' => 'Ticket not found'], 404);
+            return $response->toResponse(request());
+        } catch (TicketNotFoundException $e) {
+            return response()->json([
+                'error' => 'Ticket not found',
+                'message' => $e->getMessage(),
+            ], 404);
         }
-
-        return response()->json([
-            'id' => $ticket->getId(),
-            'title' => $ticket->getTitle(),
-            'description' => $ticket->getDescription(),
-            'priority' => $ticket->getPriority()->getValue(),
-            'status' => $ticket->getStatus()->getValue(),
-        ]);
     }
 }

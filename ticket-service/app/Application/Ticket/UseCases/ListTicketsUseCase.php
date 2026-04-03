@@ -3,18 +3,22 @@
 namespace Application\Ticket\UseCases;
 
 use Domain\Ticket\Repositories\TicketRepositoryInterface;
+use Application\Ticket\DTOs\TicketResponseData;
 
 class ListTicketsUseCase
 {
-    private TicketRepositoryInterface $repository;
-
-    public function __construct(TicketRepositoryInterface $repository)
-    {
-        $this->repository = $repository;
+    public function __construct(
+        private readonly TicketRepositoryInterface $repository
+    ) {
     }
 
+    /**
+     * @return TicketResponseData[]
+     */
     public function execute(): array
     {
-        return $this->repository->findAll();
+        $tickets = $this->repository->findAll();
+
+        return TicketResponseData::fromCollection($tickets);
     }
 }

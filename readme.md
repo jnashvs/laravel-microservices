@@ -1,8 +1,8 @@
 # Laravel Microservices
 
-Arquitetura de microserviços com Laravel, Docker, Redis Pub/Sub e DDD.
+Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-Driven Design (DDD).
 
-## Arquitetura
+## 📐 Architecture
 
 ```text
 ┌──────────────┐     ┌──────────────────┐     ┌────────────────────────┐
@@ -15,127 +15,241 @@ Arquitetura de microserviços com Laravel, Docker, Redis Pub/Sub e DDD.
                      │   MySQL      │             │    Redis     │
                      │   :3307      │             │    :6379     │
                      └──────────────┘             └──────────────┘
-
 ```
 
 ## Tech Stack
 
 PHP 8.4 + Laravel
-MySQL 8.0 — Base de dados do Ticket Service
-Redis — Pub/Sub entre serviços
+MySQL 8.0 — Ticket Service database
+Redis — Pub/Sub messaging between services
 Docker + Docker Compose
 Nginx + PHP-FPM
+Spatie Laravel Data — DTOs with validation
 DDD (Domain-Driven Design)
 
-## 📁 Estrutura do Projeto
+# 📁 Project Structure
 
 laravel-microservices/
-├── api-gateway/ # Proxy para os microserviços
-├── ticket-service/ # CRUD de tickets (DDD)
-│ ├── app/
-│ │ ├── Domain/Ticket/ # Entities, ValueObjects, Events, Repositories
-│ │ ├── Application/Ticket/ # DTOs, UseCases
-│ │ └── Infrastructure/ # Eloquent Repositories, Controllers, Listeners
-│ └── ...
-├── notification-service/ # Consome eventos e guarda notificações (DDD)
-│ ├── app/
-│ │ ├── Domain/Notification/ # Entities, Repositories
-│ │ ├── Application/ # UseCases
-│ │ ├── Infrastructure/ # File Repository, Controllers
-│ │ └── Console/Commands/ # Redis Subscriber
-│ └── ...
 ├── docker-compose.yml
-└── .env
+├── .env
+│
+├── api-gateway/
+│ ├── app/
+│ │ └── Http/Controllers/
+│ │ ├── TicketProxyController.php # Proxy requests to Ticket Service
+│ │ └── NotificationProxyController.php # Proxy requests to Notification Service
+│ ├── resources/views/
+│ │ └── dashboard.blade.php # Visual dashboard
+│ ├── routes/
+│ │ ├── api.php
+│ │ └── web.php
+│ └── Dockerfile
+│
+├── ticket-service/
+│ ├── app/
+│ │ ├── Domain/
+│ │ │ └── Ticket/
+│ │ │ ├── Entities/
+│ │ │ │ └── Ticket.php # Aggregate root with factory methods
+│ │ │ ├── ValueObjects/
+│ │ │ │ ├── Priority.php # low, medium, high
+│ │ │ │ └── TicketStatus.php # open, in_progress, closed
+│ │ │ ├── Events/
+│ │ │ │ ├── TicketCreated.php # Domain event
+│ │ │ │ └── EventDispatcherInterface.php
+│ │ │ └── Repositories/
+│ │ │ └── TicketRepositoryInterface.php
+│ │ │
+│ │ ├── Application/
+│ │ │ └── Ticket/
+│ │ │ ├── DTOs/
+│ │ │ │ ├── CreateTicketData.php # Spatie Data — request validation
+│ │ │ │ └── TicketResponseData.php # Spatie Data — response mapping
+│ │ │ ├── UseCases/
+│ │ │ │ ├── CreateTicketUseCase.php # DB transaction + event dispatch
+│ │ │ │ ├── ListTicketsUseCase.php
+│ │ │ │ └── GetTicketUseCase.php
+│ │ │ └── Exceptions/
+│ │ │ ├── TicketCreationException.php
+│ │ │ └── TicketNotFoundException.php
+│ │ │
+│ │ └── Infrastructure/
+│ │ ├── Http/Controllers/
+│ │ │ └── TicketController.php # Thin controller — delegates to use cases
+│ │ ├── Repositories/
+│ │ │ └── EloquentTicketRepository.php # Eloquent implementation
+│ │ ├── Events/
+│ │ │ └── LaravelEventDispatcher.php # Laravel Event facade wrapper
+│ │ └── Listeners/
+│ │ └── LogTicketCreated.php # Publishes to Redis
+│ │
+│ ├── app/Models/
+│ │ └── Ticket.php # Eloquent model
+│ ├── database/migrations/
+│ ├── routes/api.php
+│ ├── docker/
+│ │ ├── nginx.conf
+│ │ └── start.sh
+│ └── Dockerfile
+│
+├── notification-service/
+│ ├── app/
+│ │ ├── Domain/
+│ │ │ └── Notification/
+│ │ │ ├── Entities/
+│ │ │ │ └── Notification.php # Notification entity
+│ │ │ └── Repositories/
+│ │ │ └── NotificationRepositoryInterface.php
+│ │ │
+│ │ ├── Application/
+│ │ │ └── Notification/
+│ │ │ └── UseCases/
+│ │ │ └── CreateNotificationUseCase.php
+│ │ │
+│ │ ├── Infrastructure/
+│ │ │ ├── Http/Controllers/
+│ │ │ │ └── NotificationController.php
+│ │ │ └── Repositories/
+│ │ │ └── FileNotificationRepository.php # JSON file storage
+│ │ │
+│ │ └── Console/Commands/
+│ │ └── SubscribeTicketEvents.php # Redis Pub/Sub subscriber
+│ │
+│ ├── routes/api.php
+│ ├── docker/
+│ │ ├── nginx.conf
+│ │ └── start.sh
+│ └── Dockerfile
 
-## Setup
+``
 
-Pré-requisitos
+# Setup
+
+Prerequisites
 Docker Desktop
 Git
 
-1. Clone o repositório
-   git clone https://github.com/jnashvs/laravel-microservices.git
-   cd laravel-microservices
+1. Clone the repository
 
-2. Configure variáveis de ambiente
-   cp .env.example .env
-   cp ticket-service/.env.example ticket-service/.env
-   cp api-gateway/.env.example api-gateway/.env
-   cp notification-service/.env.example notification-service/.env
+git clone https://github.com/jnashvs/laravel-microservices.git
+cd laravel-microservices
 
-3. Gerar APP_KEYs
+2. Configure environment variables
+
+cp .env.example .env
+cp ticket-service/.env.example ticket-service/.env
+cp api-gateway/.env.example api-gateway/.env
+cp notification-service/.env.example notification-service/.env
+
+3. Generate APP_KEYs
 
 cd ticket-service && php artisan key:generate --show
 cd ../api-gateway && php artisan key:generate --show
 cd ../notification-service && php artisan key:generate --show
 cd ..
 
-4. Subir os serviços
-   docker-compose up -d --build
+4. Start all services
 
-## Testar a API - Health Checks
+docker-compose up -d --build
 
-- API Gateway: http://localhost:8000/api/health
-- Ticket Service: http://localhost:8100/api/health
-- Notification Service: http://localhost:8200/api/health
-- Criar um ticket
-  curl -X POST http://localhost:8000/api/tickets \
-   -H "Content-Type: application/json" \
-   -d '{"title": "Bug no login", "description": "Utilizador não consegue fazer login", "priority": "high"}'
+5. Verify all services are running (All services should show Up or healthy)
 
-- Listar tickets
-  curl http://localhost:8000/api/tickets
+docker-compose ps
 
-- Ver um Ticket específico
-  curl http://localhost:8000/api/tickets/1
+# API Testing
 
-- Listar notificações
-  curl http://localhost:8000/api/notifications
+1. API Gateway
+   curl http://localhost:8000/api/health
 
-## Monitor Redis em tempo real
+2. Ticket Service (direct)
+   curl http://localhost:8100/api/health
 
-- docker exec -it redis redis-cli MONITOR
+3. Notification Service (direct)
+   curl http://localhost:8200/api/health
 
-## RedisInsight (UI)
+4. Create a ticket via API Gateway
 
-- http://localhost:5540
+curl -X POST http://localhost:8000/api/tickets \
+ -H "Content-Type: application/json" \
+ -d '{"title": "Login bug", "description": "User cannot login with valid credentials", "priority": "high"}'
 
-## Logs dos serviços
+5. List tickets via API Gateway
+   curl http://localhost:8000/api/tickets
 
-- docker logs api-gateway -f
-- docker logs ticket-service -f
-- docker logs notification-service -f
-- docker-compose logs -f
+6. Get a specific Ticket by ID via API Gateway
+   curl http://localhost:8000/api/tickets/1
 
-## Fluxo de Eventos
+7. Check notifications (after creating a ticket, a notification should be created)
 
-1. Cliente envia POST /api/tickets ao API Gateway (:8000)
-2. API Gateway faz proxy para o Ticket Service (:8100)
+curl http://localhost:8000/api/notifications
+
+# 🔍 Monitoring
+
+1. Real-time Redis Monitor
+
+docker exec -it redis redis-cli MONITOR
+
+2. RedisInsight (UI)
+
+http://localhost:5540
+
+3. Service Logs
+
+docker logs api-gateway -f
+docker logs ticket-service -f
+docker logs notification-service -f
+docker-compose logs -f
+
+# Docker Commands
+
+1. Start all services
+
+docker-compose up -d --build
+
+2. Stop all services
+
+docker-compose down
+
+3. Stop and remove volumes (reset database)
+
+docker-compose down -v
+
+4. Rebuild a specific service
+
+docker-compose up -d --build ticket-service
+
+5. Check container status
+
+docker-compose ps
+
+6. Enter a container shell
+
+docker exec -it ticket-service sh
+docker exec -it notification-service sh
+
+7. View real-time logs
+
+docker-compose logs -f
+
+# Event Flow
+
+1. Client sends POST /api/tickets to the API Gateway (:8000)
+2. API Gateway proxies the request to the Ticket Service (:8100)
 3. Ticket Service:
-   a. Valida os dados (Controller)
-   b. Executa CreateTicketUseCase (Application)
-   c. Cria a entidade Ticket (Domain)
-   d. Guarda no MySQL via EloquentTicketRepository (Infrastructure)
-   e. Dispara evento TicketCreated (Domain Event)
-   f. Listener publica no Redis canal "ticket.created"
+   a. CreateTicketData (Spatie Data) validates the request automatically
+   b. CreateTicketUseCase executes inside a DB transaction
+   c. Ticket::create() factory method builds the domain entity with UUID
+   d. EloquentTicketRepository persists to MySQL
+   e. EventDispatcherInterface dispatches TicketCreated domain event
+   f. LogTicketCreated listener publishes to Redis channel "ticket.created"
+   g. Returns TicketResponseData DTO
 4. Notification Service:
-   a. Subscriber (Artisan Command) ouve o canal "ticket.created"
-   b. Recebe o payload JSON
-   c. Executa CreateNotificationUseCase (Application)
-   d. Cria entidade Notification (Domain)
-   e. Guarda em ficheiro JSON via FileNotificationRepository (Infrastructure)
-5. Cliente consulta GET /api/notifications via API Gateway
+   a. SubscribeTicketEvents (Artisan Command) listens on "ticket.created" channel
+   b. Receives the JSON payload via Predis
+   c. CreateNotificationUseCase builds the Notification entity
+   d. FileNotificationRepository persists to JSON file
+5. Client queries GET /api/notifications via API Gateway
 
-## Padrões Utilizados
+# Conclusion
 
-1. DDD (Domain-Driven Design) — Separação em Domain, Application e Infrastructure
-2. Repository Pattern — Abstração do acesso a dados
-3. Use Case Pattern — Lógica de negócio isolada
-4. Value Objects — Priority e TicketStatus
-5. Domain Events — TicketCreated
-6. Proxy Pattern — API Gateway como ponto de entrada único
-7. Event-Driven Architecture — Redis Pub/Sub entre serviços
-
-## Conclusão
-
-Este projeto demonstra uma arquitetura de microserviços utilizando Laravel, Docker e Redis Pub/Sub, seguindo os princípios de DDD para manter o código organizado e escalável. O API Gateway centraliza as requisições, enquanto os serviços independentes comunicam-se via eventos, permitindo uma evolução desacoplada.
+This project demonstrates a microservices architecture using Laravel, Docker and Redis Pub/Sub, following DDD principles to keep the codebase organized and scalable. The API Gateway centralizes all requests while independent services communicate through events, enabling decoupled evolution and independent deployment of each service.
