@@ -121,7 +121,6 @@ laravel-microservices/
 │ │ └── start.sh
 │ └── Dockerfile
 
-``
 
 # Setup
 
