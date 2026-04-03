@@ -23,12 +23,12 @@ Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-
 
 ## 🧰 Tech Stack
 
-- PHP 8.4 + Laravel  
-- MySQL 8.0 — Ticket Service database  
-- Redis — Pub/Sub messaging between services  
-- Docker + Docker Compose  
-- Nginx + PHP-FPM  
-- Spatie Laravel Data — DTOs with validation  
+- PHP 8.4 + Laravel
+- MySQL 8.0 — Ticket Service database
+- Redis — Pub/Sub messaging between services
+- Docker + Docker Compose
+- Nginx + PHP-FPM
+- Spatie Laravel Data — DTOs with validation
 - DDD (Domain-Driven Design)
 
 ---
@@ -39,20 +39,105 @@ Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-
 laravel-microservices/
 ├── docker-compose.yml
 ├── .env
-...
-```
+│
+├── api-gateway/
+│ ├── app/
+│ │ └── Http/Controllers/
+│ │ ├── TicketProxyController.php # Proxy requests to Ticket Service
+│ │ └── NotificationProxyController.php # Proxy requests to Notification Service
+│ ├── resources/views/
+│ │ └── dashboard.blade.php # Visual dashboard
+│ ├── routes/
+│ │ ├── api.php
+│ │ └── web.php
+│ └── Dockerfile
+│
+├── ticket-service/
+│ ├── app/
+│ │ ├── Domain/
+│ │ │ └── Ticket/
+│ │ │ ├── Entities/
+│ │ │ │ └── Ticket.php # Aggregate root with factory methods
+│ │ │ ├── ValueObjects/
+│ │ │ │ ├── Priority.php # low, medium, high
+│ │ │ │ └── TicketStatus.php # open, in_progress, closed
+│ │ │ ├── Events/
+│ │ │ │ ├── TicketCreated.php # Domain event
+│ │ │ │ └── EventDispatcherInterface.php
+│ │ │ └── Repositories/
+│ │ │ └── TicketRepositoryInterface.php
+│ │ │
+│ │ ├── Application/
+│ │ │ └── Ticket/
+│ │ │ ├── DTOs/
+│ │ │ │ ├── CreateTicketData.php # Spatie Data — request validation
+│ │ │ │ └── TicketResponseData.php # Spatie Data — response mapping
+│ │ │ ├── UseCases/
+│ │ │ │ ├── CreateTicketUseCase.php # DB transaction + event dispatch
+│ │ │ │ ├── ListTicketsUseCase.php
+│ │ │ │ └── GetTicketUseCase.php
+│ │ │ └── Exceptions/
+│ │ │ ├── TicketCreationException.php
+│ │ │ └── TicketNotFoundException.php
+│ │ │
+│ │ └── Infrastructure/
+│ │ ├── Http/Controllers/
+│ │ │ └── TicketController.php # Thin controller — delegates to use cases
+│ │ ├── Repositories/
+│ │ │ └── EloquentTicketRepository.php # Eloquent implementation
+│ │ ├── Events/
+│ │ │ └── LaravelEventDispatcher.php # Laravel Event facade wrapper
+│ │ └── Listeners/
+│ │ └── LogTicketCreated.php # Publishes to Redis
+│ │
+│ ├── app/Models/
+│ │ └── Ticket.php # Eloquent model
+│ ├── database/migrations/
+│ ├── routes/api.php
+│ ├── docker/
+│ │ ├── nginx.conf
+│ │ └── start.sh
+│ └── Dockerfile
+│
+├── notification-service/
+│ ├── app/
+│ │ ├── Domain/
+│ │ │ └── Notification/
+│ │ │ ├── Entities/
+│ │ │ │ └── Notification.php # Notification entity
+│ │ │ └── Repositories/
+│ │ │ └── NotificationRepositoryInterface.php
+│ │ │
+│ │ ├── Application/
+│ │ │ └── Notification/
+│ │ │ └── UseCases/
+│ │ │ └── CreateNotificationUseCase.php
+│ │ │
+│ │ ├── Infrastructure/
+│ │ │ ├── Http/Controllers/
+│ │ │ │ └── NotificationController.php
+│ │ │ └── Repositories/
+│ │ │ └── FileNotificationRepository.php # JSON file storage
+│ │ │
+│ │ └── Console/Commands/
+│ │ └── SubscribeTicketEvents.php # Redis Pub/Sub subscriber
+│ │
+│ ├── routes/api.php
+│ ├── docker/
+│ │ ├── nginx.conf
+│ │ └── start.sh
+│ └── Dockerfile
 
----
+``
 
-## ⚙️ Setup
+# Setup
 
-### 📋 Prerequisites
-- Docker Desktop  
-- Git  
+Prerequisites
+Docker Desktop
+Git
 
-### 1️⃣ Clone the repository
+1. Clone the repository
 
-```bash
 git clone https://github.com/jnashvs/laravel-microservices.git
 cd laravel-microservices
 ```
