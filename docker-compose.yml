@@ -99,6 +99,14 @@ services:
     networks:
       - microservices
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    ports:
+      - "5540:5540"
+    networks:
+      - microservices
+
 networks:
   microservices:
     driver: bridge
