@@ -2,21 +2,20 @@
 
 namespace App\Providers;
 
+use Domain\Notification\Repositories\NotificationRepositoryInterface;
 use Illuminate\Support\ServiceProvider;
+use Infrastructure\Repositories\FileNotificationRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            NotificationRepositoryInterface::class,
+            FileNotificationRepository::class
+        );
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         //
