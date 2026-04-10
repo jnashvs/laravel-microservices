@@ -3,10 +3,20 @@
 use Illuminate\Support\Facades\Route;
 use Infrastructure\Http\Controllers\TicketController;
 
-Route::get('/health', function () {
-    return response()->json(['status' => 'ok']);
-});
+/*
+|--------------------------------------------------------------------------
+| Health
+|--------------------------------------------------------------------------
+*/
+Route::get('/health', fn () => response()->json(['status' => 'ok']));
 
-Route::post('/tickets', [TicketController::class, 'store']);
-Route::get('/tickets', [TicketController::class, 'index']);
-Route::get('/tickets/{id}', [TicketController::class, 'show']);
+/*
+|--------------------------------------------------------------------------
+| Tickets
+|--------------------------------------------------------------------------
+*/
+Route::prefix('tickets')->group(function () {
+    Route::get('/{id}', [TicketController::class, 'show']);
+    Route::post('/', [TicketController::class, 'store']);
+    Route::get('/', [TicketController::class, 'index']);
+});

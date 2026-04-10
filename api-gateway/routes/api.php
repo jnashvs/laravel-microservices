@@ -1,18 +1,35 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TicketProxyController;
-use App\Http\Controllers\NotificationProxyController;
-use App\Http\Controllers\HealthController;
 
-// Public
-Route::get('/health', HealthController::class);
+/*
+|--------------------------------------------------------------------------
+| Public
+|--------------------------------------------------------------------------
+*/
 
-// Protected
-Route::middleware(['auth.apikey', 'rate.limit'])->group(function () {
-    Route::post('/tickets', [TicketProxyController::class, 'store']);
-    Route::get('/tickets', [TicketProxyController::class, 'index']);
-    Route::get('/tickets/{id}', [TicketProxyController::class, 'show']);
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/refresh', [AuthController::class, 'refresh']);
 
-    Route::get('/notifications', [NotificationProxyController::class, 'index']);
+/*
+|--------------------------------------------------------------------------
+| Protected
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth.service')->group(function () {
+
+    // Auth
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Tickets
+    Route::prefix('tickets')->group(function () {
+        Route::get('/{id}', [TicketProxyController::class, 'show']);
+        Route::get('/', [TicketProxyController::class, 'index']);
+        Route::post('/', [TicketProxyController::class, 'store']);
+    });
+
 });

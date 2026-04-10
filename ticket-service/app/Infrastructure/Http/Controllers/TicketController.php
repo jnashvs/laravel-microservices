@@ -3,6 +3,7 @@
 namespace Infrastructure\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Application\Ticket\UseCases\CreateTicketUseCase;
 use Application\Ticket\UseCases\ListTicketsUseCase;
@@ -23,9 +24,13 @@ class TicketController extends Controller
     public function store(CreateTicketData $data): JsonResponse
     {
         try {
-            $response = $this->createUseCase->execute($data);
+            $ticket = $this->createUseCase->execute($data);
 
-            return $response->toResponse(request())->setStatusCode(201);
+            return response()->json(
+                $ticket->toArray(),
+                201
+            );
+
         } catch (TicketCreationException $e) {
             return response()->json([
                 'error' => 'Failed to create ticket',
@@ -36,19 +41,22 @@ class TicketController extends Controller
 
     public function index(): JsonResponse
     {
-        $responses = $this->listUseCase->execute();
+        $tickets = $this->listUseCase->execute();
 
         return response()->json(
-            array_map(fn ($dto) => $dto->toArray(), $responses)
+            array_map(fn ($ticket) => $ticket->toArray(), $tickets)
         );
     }
 
     public function show(string $id): JsonResponse
     {
         try {
-            $response = $this->getUseCase->execute($id);
+            $ticket = $this->getUseCase->execute($id);
 
-            return $response->toResponse(request());
+            return response()->json(
+                $ticket->toArray()
+            );
+
         } catch (TicketNotFoundException $e) {
             return response()->json([
                 'error' => 'Ticket not found',

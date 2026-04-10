@@ -2,14 +2,14 @@
 
 namespace Application\Ticket\UseCases;
 
-use Domain\Ticket\Repositories\TicketRepositoryInterface;
+use Domain\Ticket\Services\TicketService;
 use Application\Ticket\DTOs\TicketResponseData;
 use Application\Ticket\Exceptions\TicketNotFoundException;
 
 class GetTicketUseCase
 {
     public function __construct(
-        private readonly TicketRepositoryInterface $repository
+        private readonly TicketService $service
     ) {
     }
 
@@ -18,7 +18,7 @@ class GetTicketUseCase
      */
     public function execute(string $id): TicketResponseData
     {
-        $ticket = $this->repository->find($id);
+        $ticket = $this->service->find($id);
 
         if (!$ticket) {
             throw TicketNotFoundException::withId($id);

@@ -1,7 +1,6 @@
 <?php
 
-use App\Http\Middleware\AuthenticateApiKey;
-use App\Http\Middleware\RateLimitMiddleware;
+use App\Http\Middleware\AuthenticateViaAuthService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,10 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'auth.apikey' => AuthenticateApiKey::class,
-            'rate.limit'  => RateLimitMiddleware::class,
+            'auth.service' => AuthenticateViaAuthService::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
-    })->create();
+        $exceptions->shouldRenderJsonWhen(function ($request, $e) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
+    })
+    ->create();

@@ -1,17 +1,28 @@
 version: "3.8"
 
 services:
+  # ----------------------------
+  # API Gateway
+  # ----------------------------
   api-gateway:
     build: ./api-gateway
     container_name: api-gateway
     ports:
       - "8000:80"
+    volumes:
+      - ./api-gateway:/var/www/html
+      - ./api-gateway/bootstrap/cache:/var/www/html/bootstrap/cache
     environment:
       APP_ENV: local
       APP_KEY: ${API_GATEWAY_APP_KEY}
-      TICKET_SERVICE_URL: http://ticket-service:80/api
-      NOTIFICATION_SERVICE_URL: http://notification-service:80/api
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      TICKET_SERVICE_URL: http://ticket-service:80
+      NOTIFICATION_SERVICE_URL: http://notification-service:80
+      AUTH_SERVICE_URL: http://auth-service:80
     depends_on:
+      auth-service:
+        condition: service_healthy
       ticket-service:
         condition: service_healthy
       notification-service:
@@ -19,11 +30,59 @@ services:
     networks:
       - microservices
 
+  # ----------------------------
+  # Auth Service
+  # ----------------------------
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    #ports:
+    #  - "8010:80"
+    volumes:
+      - ./auth-service:/var/www/html
+      - ./auth-service/bootstrap/cache:/var/www/html/bootstrap/cache
+    environment:
+      APP_NAME: AuthService
+      APP_ENV: local
+      APP_KEY: ${AUTH_SERVICE_APP_KEY}
+      APP_DEBUG: "true"
+      APP_URL: http://auth-service
+      DB_CONNECTION: mysql
+      DB_HOST: auth-db
+      DB_PORT: 3306
+      DB_DATABASE: auth_service
+      DB_USERNAME: user
+      DB_PASSWORD: password
+      REDIS_HOST: auth-redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
+      PASSPORT_PASSWORD_CLIENT_ID: ${PASSPORT_PASSWORD_CLIENT_ID}
+      PASSPORT_PASSWORD_CLIENT_SECRET: ${PASSPORT_PASSWORD_CLIENT_SECRET}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      auth-redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/up || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - microservices
+
+  # ----------------------------
+  # Ticket Service
+  # ----------------------------
   ticket-service:
     build: ./ticket-service
     container_name: ticket-service
-    ports:
-      - "8100:80"
+    #ports:
+    #  - "8100:80"
+    volumes:
+      - ./ticket-service:/var/www/html
+      - ./ticket-service/bootstrap/cache:/var/www/html/bootstrap/cache
     environment:
       APP_ENV: local
       APP_KEY: ${TICKET_SERVICE_APP_KEY}
@@ -50,11 +109,17 @@ services:
     networks:
       - microservices
 
+  # ----------------------------
+  # Notification Service
+  # ----------------------------
   notification-service:
     build: ./notification-service
     container_name: notification-service
-    ports:
-      - "8200:80"
+    #ports:
+    #  - "8200:80"
+    volumes:
+      - ./notification-service:/var/www/html
+      - ./notification-service/bootstrap/cache:/var/www/html/bootstrap/cache
     environment:
       APP_ENV: local
       APP_KEY: ${NOTIFICATION_SERVICE_APP_KEY}
@@ -71,6 +136,29 @@ services:
     networks:
       - microservices
 
+  # ----------------------------
+  # Databases & Redis
+  # ----------------------------
+  auth-db:
+    image: mysql:8.0
+    container_name: auth-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: auth_service
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3308:3306"
+    volumes:
+      - auth-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - microservices
+
   ticket-db:
     image: mysql:8.0
     container_name: ticket-db
@@ -83,13 +171,21 @@ services:
       - "3307:3306"
     volumes:
       - ticket-db-data:/var/lib/mysql
-    networks:
-      - microservices
     healthcheck:
       test:
         ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-ppassword"]
       interval: 10s
       retries: 5
+    networks:
+      - microservices
+
+  auth-redis:
+    image: redis:alpine
+    container_name: auth-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - microservices
 
   redis:
     image: redis:alpine
@@ -113,3 +209,4 @@ networks:
 
 volumes:
   ticket-db-data:
+  auth-db-data:

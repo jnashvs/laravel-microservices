@@ -13,36 +13,43 @@ abstract class BaseServiceProxy
     abstract protected function getBaseUrl(): string;
     abstract protected function getServiceName(): string;
 
-    protected function get(string $path): Response
+    protected function getHeaders(): array
     {
-        return $this->request('get', $path);
+        return [
+            'Accept' => 'application/json',
+            'X-Forwarded-By' => 'api-gateway',
+        ];
     }
 
-    protected function post(string $path, array $data = []): Response
+    protected function get(string $path, array $headers = []): Response
     {
-        return $this->request('post', $path, $data);
+        return $this->request('get', $path, [], $headers);
     }
 
-    private function request(string $method, string $path, array $data = []): Response
+    protected function post(string $path, array $data = [], array $headers = []): Response
+    {
+        return $this->request('post', $path, $data, $headers);
+    }
+
+    private function request(string $method, string $path, array $data = [], array $headers = []): Response
     {
         $url = rtrim($this->getBaseUrl(), '/') . '/' . ltrim($path, '/');
 
         try {
             $response = Http::timeout(10)
                 ->connectTimeout(5)
-                ->withHeaders([
-                    'Accept' => 'application/json',
-                    'X-Forwarded-By' => 'api-gateway',
-                ])
+                ->retry(3, 100)
+                ->withHeaders(array_merge($this->getHeaders(), $headers))
                 ->{$method}($url, $data);
 
-            Log::channel('single')->info("[{$this->getServiceName()}] {$method} {$path}", [
+            Log::info("[{$this->getServiceName()}] {$method} {$path}", [
                 'status' => $response->status(),
             ]);
 
             return $response;
+
         } catch (ConnectionException $e) {
-            Log::channel('single')->error("[{$this->getServiceName()}] Connection failed: {$path}", [
+            Log::error("[{$this->getServiceName()}] Connection failed: {$path}", [
                 'error' => $e->getMessage(),
             ]);
 

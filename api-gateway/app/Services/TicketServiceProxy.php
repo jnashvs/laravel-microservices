@@ -16,7 +16,7 @@ class TicketServiceProxy extends BaseServiceProxy
 
     public function createTicket(array $data): array
     {
-        $response = $this->post('tickets', $data);
+        $response = $this->post('api/tickets', $data);
 
         return [
             'data' => $response->json(),
@@ -26,7 +26,7 @@ class TicketServiceProxy extends BaseServiceProxy
 
     public function listTickets(): array
     {
-        $response = $this->get('tickets');
+        $response = $this->get('api/tickets');
 
         return [
             'data' => $response->json(),
@@ -36,7 +36,7 @@ class TicketServiceProxy extends BaseServiceProxy
 
     public function getTicket(string $id): array
     {
-        $response = $this->get("tickets/{$id}");
+        $response = $this->get("api/tickets/{$id}");
 
         return [
             'data' => $response->json(),
