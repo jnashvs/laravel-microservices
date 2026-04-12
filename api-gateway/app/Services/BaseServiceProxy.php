@@ -31,7 +31,7 @@ abstract class BaseServiceProxy
         return $this->request('post', $path, $data, $headers);
     }
 
-    private function request(string $method, string $path, array $data = [], array $headers = []): Response
+    protected function request(string $method, string $path, array $data = [], array $headers = []): Response
     {
         $url = rtrim($this->getBaseUrl(), '/') . '/' . ltrim($path, '/');
 

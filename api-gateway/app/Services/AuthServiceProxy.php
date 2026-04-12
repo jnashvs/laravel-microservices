@@ -50,8 +50,51 @@ class AuthServiceProxy extends BaseServiceProxy
 
     public function logout(string $token)
     {
+        $this->clearTokenCache($token);
+
         return $this->post('api/logout', [], [
             'Authorization' => "Bearer {$token}",
+        ]);
+    }
+
+    /**
+     * Override request to implement global circuit breaker for auth-service.
+     */
+    protected function request(string $method, string $path, array $data = [], array $headers = []): \Illuminate\Http\Client\Response
+    {
+        if ($this->isCircuitBroken() && $path !== 'api/token/validate') {
+             // For other paths than validate, we just fail fast if circuit is broken
+             // Or we could let it through and see if it succeeds to reset the circuit.
+             // Usually, circuit breakers have a "half-open" state. 
+             // For simplicity, let's just let it through but log it.
+        }
+
+        try {
+            $response = parent::request($method, $path, $data, $headers);
+            
+            if ($response->successful()) {
+                $this->resetCircuit();
+            }
+
+            return $response;
+        } catch (\Throwable $e) {
+            $this->recordFailure($e);
+            throw $e;
+        }
+    }
+
+    private function resetCircuit(): void
+    {
+        Cache::forget(self::FAILURES_KEY);
+    }
+
+    private function clearTokenCache(string $token): void
+    {
+        $tokenHash = hash('sha256', $token);
+        Cache::forget(self::CACHE_PREFIX . $tokenHash);
+        
+        Log::info("[{$this->getServiceName()}] Token cache cleared (logout)", [
+            'token_hash' => $tokenHash
         ]);
     }
 
@@ -68,10 +111,10 @@ class AuthServiceProxy extends BaseServiceProxy
         }
 
         try {
-            $response = Http::withHeaders($this->getHeaders())
-                ->withToken($token)
-                ->timeout(5)
-                ->get($this->getBaseUrl() . '/api/token/validate');
+            // Use the protected request method to benefit from circuit breaker logic
+            $response = $this->get('api/token/validate', [
+                'Authorization' => "Bearer {$token}",
+            ]);
 
             if ($response->successful() && $response->json('valid')) {
                 return $this->handleSuccess($cacheKey, $token, $response->json('user'));
@@ -80,7 +123,7 @@ class AuthServiceProxy extends BaseServiceProxy
             return $this->handleFailure($response);
 
         } catch (\Throwable $e) {
-            $this->recordFailure($e);
+            // recordFailure is already called inside request() override
             return $this->fallback($cacheKey, $e->getMessage(), $tokenHash);
         }
     }
@@ -92,7 +135,7 @@ class AuthServiceProxy extends BaseServiceProxy
 
     private function handleSuccess(string $cacheKey, string $token, array $userData): array
     {
-        Cache::forget(self::FAILURES_KEY);
+        // resetCircuit() is already called inside request() override
 
         $ttl = $this->calculateCacheTtl($token);
         if ($ttl > 0) {
