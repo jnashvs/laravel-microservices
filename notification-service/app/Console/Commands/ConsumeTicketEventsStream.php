@@ -33,14 +33,14 @@ class ConsumeTicketEventsStream extends Command
         $consumer = gethostname() . '-' . getmypid();
 
         try {
-            $redis->xgroup('CREATE', $stream, $group, '0', true);
-        } catch (\Exception $e) {
+            $redis->executeRaw(['XGROUP', 'CREATE', $stream, $group, '0', 'MKSTREAM']);
+        } catch (\Exception) {
+            // Group might already exist
         }
 
         $this->info("Listening to stream: {$stream}");
 
         while (true) {
-
             $messages = $redis->executeRaw([
                 'XREADGROUP',
                 'GROUP', $group, $consumer,
@@ -55,7 +55,6 @@ class ConsumeTicketEventsStream extends Command
 
             foreach ($messages as [$streamName, $events]) {
                 foreach ($events as [$id, $fieldsRaw]) {
-
                     $fields = [];
                     for ($i = 0; $i < count($fieldsRaw); $i += 2) {
                         $fields[$fieldsRaw[$i]] = $fieldsRaw[$i + 1];
@@ -73,20 +72,22 @@ class ConsumeTicketEventsStream extends Command
             $payload = json_decode($fields['payload'], true);
 
             if (!$payload) {
-                $this->error("Invalid payload");
                 return;
             }
 
-            Log::info("Received Event:", ["events" => $payload]);
+            $eventLabel = strtoupper($fields['event'] ?? 'UNKNOWN');
+            $title = $payload['title'] ?? 'No Title';
+            $priority = $payload['priority'] ?? 'normal';
+            
+            $message = "[{$eventLabel}] Ticket: {$title} | Priority: {$priority}";
 
             $this->createNotification->execute(
-                type: $fields['event'],
-                message: "New ticket: {$payload['title']} ({$payload['priority']})",
-                referenceId: $payload['id']
+                type: $fields['event'] ?? 'system',
+                message: $message,
+                referenceId: $payload['id'] ?? 'N/A'
             );
 
-            $redis->xack($stream, $group, $id);
-
+            $redis->executeRaw(['XACK', $stream, $group, $id]);
             $this->info("Processed message: {$id}");
 
         } catch (\Throwable $e) {

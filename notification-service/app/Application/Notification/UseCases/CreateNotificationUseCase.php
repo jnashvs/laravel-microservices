@@ -3,26 +3,20 @@
 namespace Application\Notification\UseCases;
 
 use Domain\Notification\Entities\Notification;
-use Domain\Notification\Repositories\NotificationRepositoryInterface;
-use Illuminate\Support\Str;
+use Domain\Notification\Services\NotificationService;
 
 class CreateNotificationUseCase
 {
-    public function __construct(private readonly NotificationRepositoryInterface $repository)
+    public function __construct(private readonly NotificationService $service)
     {
     }
 
     public function execute(string $type, string $message, string $referenceId): Notification
     {
-        $notification = new Notification(
-            Str::uuid()->toString(),
+        return $this->service->createAndNotify(
             $type,
             $message,
             $referenceId
         );
-
-        $this->repository->save($notification);
-
-        return $notification;
     }
 }
