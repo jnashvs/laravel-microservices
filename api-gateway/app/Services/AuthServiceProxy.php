@@ -11,14 +11,13 @@ class AuthServiceProxy extends BaseServiceProxy
     private const CACHE_PREFIX = 'auth:token:';
     private const FAILURES_KEY = 'auth:failures';
     private const FAILURE_THRESHOLD = 5;
-    private const FAILURE_WINDOW = 60; // seconds
-    private const MAX_CACHE_TTL = 300; // 5 minutes
+    private const FAILURE_WINDOW = 60;
+    private const MAX_CACHE_TTL = 300;
 
     protected function getBaseUrl(): string
     {
         return config('services.auth.url');
     }
-
     protected function getServiceName(): string
     {
         return 'auth-service';
@@ -35,67 +34,19 @@ class AuthServiceProxy extends BaseServiceProxy
     {
         return $this->post('api/login', $data);
     }
-
     public function refresh(array $data)
     {
         return $this->post('api/refresh', $data);
     }
-
     public function me(string $token)
     {
-        return $this->get('api/me', [
-            'Authorization' => "Bearer {$token}",
-        ]);
+        return $this->get('api/me', ['Authorization' => "Bearer {$token}"]);
     }
 
     public function logout(string $token)
     {
         $this->clearTokenCache($token);
-
-        return $this->post('api/logout', [], [
-            'Authorization' => "Bearer {$token}",
-        ]);
-    }
-
-    /**
-     * Override request to implement global circuit breaker for auth-service.
-     */
-    protected function request(string $method, string $path, array $data = [], array $headers = []): \Illuminate\Http\Client\Response
-    {
-        if ($this->isCircuitBroken() && $path !== 'api/token/validate') {
-             // For other paths than validate, we just fail fast if circuit is broken
-             // Or we could let it through and see if it succeeds to reset the circuit.
-             // Usually, circuit breakers have a "half-open" state. 
-             // For simplicity, let's just let it through but log it.
-        }
-
-        try {
-            $response = parent::request($method, $path, $data, $headers);
-            
-            if ($response->successful()) {
-                $this->resetCircuit();
-            }
-
-            return $response;
-        } catch (\Throwable $e) {
-            $this->recordFailure($e);
-            throw $e;
-        }
-    }
-
-    private function resetCircuit(): void
-    {
-        Cache::forget(self::FAILURES_KEY);
-    }
-
-    private function clearTokenCache(string $token): void
-    {
-        $tokenHash = hash('sha256', $token);
-        Cache::forget(self::CACHE_PREFIX . $tokenHash);
-        
-        Log::info("[{$this->getServiceName()}] Token cache cleared (logout)", [
-            'token_hash' => $tokenHash
-        ]);
+        return $this->post('api/logout', [], ['Authorization' => "Bearer {$token}"]);
     }
 
     /**
@@ -106,25 +57,45 @@ class AuthServiceProxy extends BaseServiceProxy
         $tokenHash = hash('sha256', $token);
         $cacheKey = self::CACHE_PREFIX . $tokenHash;
 
+        // Cache hit?
+        if ($cached = Cache::get($cacheKey)) {
+            Log::info("[{$this->getServiceName()}] Token cache hit", ['hash' => $tokenHash]);
+            return $cached;
+        }
+
+        // Circuit broken
         if ($this->isCircuitBroken()) {
             return $this->fallback($cacheKey, 'Circuit breaker open', $tokenHash);
         }
 
         try {
-            // Use the protected request method to benefit from circuit breaker logic
-            $response = $this->get('api/token/validate', [
-                'Authorization' => "Bearer {$token}",
-            ]);
+            // Request validation
+            $response = $this->get('api/token/validate', ['Authorization' => "Bearer {$token}"]);
 
             if ($response->successful() && $response->json('valid')) {
-                return $this->handleSuccess($cacheKey, $token, $response->json('user'));
+                return $this->cacheTokenResult($cacheKey, $token, $response->json('user'));
             }
 
             return $this->handleFailure($response);
-
         } catch (\Throwable $e) {
-            // recordFailure is already called inside request() override
             return $this->fallback($cacheKey, $e->getMessage(), $tokenHash);
+        }
+    }
+
+    /**
+     * Global circuit breaker logic for all auth-service requests.
+     */
+    protected function request(string $method, string $path, array $data = [], array $headers = []): \Illuminate\Http\Client\Response
+    {
+        try {
+            $response = parent::request($method, $path, $data, $headers);
+            if ($response->successful()) {
+                $this->resetCircuit();
+            }
+            return $response;
+        } catch (\Throwable $e) {
+            $this->recordFailure($e);
+            throw $e;
         }
     }
 
@@ -133,61 +104,57 @@ class AuthServiceProxy extends BaseServiceProxy
         return (int) Cache::get(self::FAILURES_KEY, 0) >= self::FAILURE_THRESHOLD;
     }
 
-    private function handleSuccess(string $cacheKey, string $token, array $userData): array
+    private function resetCircuit(): void
     {
-        // resetCircuit() is already called inside request() override
-
-        $ttl = $this->calculateCacheTtl($token);
-        if ($ttl > 0) {
-            Cache::put($cacheKey, $userData, $ttl);
-        }
-
-        Log::info("[{$this->getServiceName()}] Token validated successfully", [
-            'user_id' => $userData['id'] ?? null
-        ]);
-
-        return $userData;
-    }
-
-    private function handleFailure($response): ?array
-    {
-        Log::error("[{$this->getServiceName()}] Token validation failed", [
-            'status' => $response->status(),
-            'response' => $response->body()
-        ]);
-
-        return null;
+        Cache::forget(self::FAILURES_KEY);
     }
 
     private function recordFailure(\Throwable $e): void
     {
         Cache::increment(self::FAILURES_KEY, 1, self::FAILURE_WINDOW);
-        
-        Log::error("[{$this->getServiceName()}] Connection error during validation", [
-            'error' => $e->getMessage()
+        Log::error("[{$this->getServiceName()}] Connection error", ['error' => $e->getMessage()]);
+    }
+
+    private function cacheTokenResult(string $cacheKey, string $token, array $userData): array
+    {
+        $ttl = $this->calculateCacheTtl($token);
+        if ($ttl > 0) {
+            Cache::put($cacheKey, $userData, $ttl);
+            Log::info("[{$this->getServiceName()}] Token cached", ['ttl' => $ttl]);
+        }
+        return $userData;
+    }
+
+    private function handleFailure($response): ?array
+    {
+        Log::error("[{$this->getServiceName()}] Validation failed", [
+            'status' => $response->status(),
+            'body' => $response->json()
         ]);
+        return null;
     }
 
     private function fallback(string $cacheKey, string $reason, string $hash): ?array
     {
-        $cached = Cache::get($cacheKey);
-
-        if ($cached) {
-            Log::warning("[{$this->getServiceName()}] Falling back to cache", [
-                'reason' => $reason,
-                'token_hash' => $hash
-            ]);
+        if ($cached = Cache::get($cacheKey)) {
+            Log::warning("[{$this->getServiceName()}] Fallback to cache", ['reason' => $reason, 'hash' => $hash]);
             return $cached;
         }
-
         return null;
+    }
+
+    private function clearTokenCache(string $token): void
+    {
+        Cache::forget(self::CACHE_PREFIX . hash('sha256', $token));
     }
 
     private function calculateCacheTtl(string $token): int
     {
         try {
             $parts = explode('.', $token);
-            if (count($parts) !== 3) return 0;
+            if (count($parts) !== 3) {
+                return 0;
+            }
 
             $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1])), true);
             $remaining = ($payload['exp'] ?? 0) - time();
