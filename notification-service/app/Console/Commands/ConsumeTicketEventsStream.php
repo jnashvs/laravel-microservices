@@ -69,6 +69,15 @@ class ConsumeTicketEventsStream extends Command
     private function process($redis, $stream, $group, $id, $fields): void
     {
         try {
+            $correlationId = $fields['correlation_id'] ?? 'N/A';
+
+            // Log with Correlation ID for tracing
+            Log::info("[NotificationService] Processing event", [
+                'correlation_id' => $correlationId,
+                'event_id' => $id,
+                'event' => $fields['event'] ?? 'unknown'
+            ]);
+
             $payload = json_decode($fields['payload'], true);
 
             if (!$payload) {
@@ -78,7 +87,7 @@ class ConsumeTicketEventsStream extends Command
             $eventLabel = strtoupper($fields['event'] ?? 'UNKNOWN');
             $title = $payload['title'] ?? 'No Title';
             $priority = $payload['priority'] ?? 'normal';
-            
+
             $message = "[{$eventLabel}] Ticket: {$title} | Priority: {$priority}";
 
             $this->createNotification->execute(
@@ -88,7 +97,8 @@ class ConsumeTicketEventsStream extends Command
             );
 
             $redis->executeRaw(['XACK', $stream, $group, $id]);
-            $this->info("Processed message: {$id}");
+
+            $this->info("Processed message: {$id} (Correlation: {$correlationId})");
 
         } catch (\Throwable $e) {
             $this->error("Failed processing {$id}: " . $e->getMessage());

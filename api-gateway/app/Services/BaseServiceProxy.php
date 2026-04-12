@@ -18,6 +18,7 @@ abstract class BaseServiceProxy
         return [
             'Accept' => 'application/json',
             'X-Forwarded-By' => 'api-gateway',
+            'X-Correlation-ID' => request()->header('X-Correlation-ID'),
         ];
     }
 
