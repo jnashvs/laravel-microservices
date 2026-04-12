@@ -8,11 +8,8 @@ use Illuminate\Support\Str;
 
 class CreateNotificationUseCase
 {
-    private NotificationRepositoryInterface $repository;
-
-    public function __construct(NotificationRepositoryInterface $repository)
+    public function __construct(private readonly NotificationRepositoryInterface $repository)
     {
-        $this->repository = $repository;
     }
 
     public function execute(string $type, string $message, string $referenceId): Notification

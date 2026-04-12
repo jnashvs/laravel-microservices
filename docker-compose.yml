@@ -36,8 +36,8 @@ services:
   auth-service:
     build: ./auth-service
     container_name: auth-service
-    #ports:
-    #  - "8010:80"
+    ports:
+      - "8010:80"
     volumes:
       - ./auth-service:/var/www/html
       - ./auth-service/bootstrap/cache:/var/www/html/bootstrap/cache
@@ -78,8 +78,8 @@ services:
   ticket-service:
     build: ./ticket-service
     container_name: ticket-service
-    #ports:
-    #  - "8100:80"
+    ports:
+      - "8100:80"
     volumes:
       - ./ticket-service:/var/www/html
       - ./ticket-service/bootstrap/cache:/var/www/html/bootstrap/cache
@@ -115,8 +115,8 @@ services:
   notification-service:
     build: ./notification-service
     container_name: notification-service
-    #ports:
-    #  - "8200:80"
+    ports:
+      - "8200:80"
     volumes:
       - ./notification-service:/var/www/html
       - ./notification-service/bootstrap/cache:/var/www/html/bootstrap/cache
