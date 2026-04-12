@@ -1,6 +1,6 @@
 # Laravel Microservices
 
-Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-Driven Design (DDD).
+Microservices architecture built with Laravel, Docker, Redis Streams and Domain-Driven Design (DDD).
 
 ---
 
@@ -15,7 +15,7 @@ Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-
                              ▼                             ▼
                      ┌──────────────┐             ┌──────────────┐
                      │   MySQL      │             │    Redis     │
-                     │   :3307      │             │    :6379     │
+                     │   :3307      │             │    Streams   │
                      └──────────────┘             └──────────────┘
 ```
 
@@ -25,7 +25,7 @@ Microservices architecture built with Laravel, Docker, Redis Pub/Sub and Domain-
 
 - PHP 8.4 + Laravel
 - MySQL 8.0 — Ticket Service database
-- Redis — Pub/Sub messaging between services
+- Redis — Streams messaging between services
 - Docker + Docker Compose
 - Nginx + PHP-FPM
 - Spatie Laravel Data — DTOs with validation
@@ -69,6 +69,7 @@ laravel-microservices/
 │   │   │       ├── ValueObjects/TicketStatus.php
 │   │   │       ├── Events/TicketCreated.php
 │   │   │       ├── Events/EventDispatcherInterface.php
+│   │   │       ├── Events/EventListenerInterface.php
 │   │   │       └── Repositories/TicketRepositoryInterface.php
 │   │   ├── Application/
 │   │   │   └── Ticket/
@@ -80,12 +81,16 @@ laravel-microservices/
 │   │   │       └── Exceptions/
 │   │   │           ├── TicketCreationException.php
 │   │   │           └── TicketNotFoundException.php
-│   │   └── Infrastructure/
-│   │       ├── Http/Controllers/TicketController.php
-│   │       ├── Repositories/EloquentTicketRepository.php
-│   │       ├── Events/LaravelEventDispatcher.php
-│   │       └── Listeners/LogTicketCreated.php
-│   ├── app/Models/Ticket.php
+│   │   ├── Infrastructure/
+│   │   │   ├── Http/Controllers/TicketController.php
+│   │   │   ├── Repositories/EloquentTicketRepository.php
+│   │   │   ├── Events/SimpleEventDispatcher.php
+│   │   │   ├── Events/RedisStreamEventPublisher.php
+│   │   │   └── Listeners/PublishTicketCreatedListener.php
+│   │   ├── Providers/
+│   │   │   ├── AppServiceProvider.php
+│   │   │   └── EventServiceProvider.php
+│   │   └── Models/Ticket.php
 │   ├── database/migrations/
 │   ├── routes/api.php
 │   └── Dockerfile
@@ -205,7 +210,7 @@ curl -s -X POST http://localhost:8000/api/tickets \
 
 ```bash
 curl -s http://localhost:8000/api/tickets \
-  -H "X-API-Key: wrong-key" | jq
+  -H "X-API-Key: ms-key-2026-prod" | jq
 ```
 
 6. List notifications (200 OK)
@@ -220,6 +225,14 @@ curl -s http://localhost:8000/api/notifications \
 
 ## 🔍 Monitoring
 
+### Inspect Redis Streams events
+
+```bash
+docker exec -it redis redis-cli XRANGE ticket.events - +
+```
+
+### Monitor Redis in real-time
+
 ```bash
 docker exec -it redis redis-cli MONITOR
 ```
@@ -227,6 +240,14 @@ docker exec -it redis redis-cli MONITOR
 ---
 
 ## 🐳 Docker Commands
+
+### Start consumer in Notification Service
+
+```bash
+docker exec -it notification-service php artisan redis:consume-ticket-stream
+```
+
+### General management
 
 ```bash
 docker-compose up -d --build
@@ -250,11 +271,11 @@ docker-compose logs -f
    c. Ticket::create() factory method builds the domain entity with UUID
    d. EloquentTicketRepository persists to MySQL
    e. EventDispatcherInterface dispatches TicketCreated domain event
-   f. LogTicketCreated listener publishes to Redis channel "ticket.created"
+   f. PublishTicketCreatedListener publishes to Redis Stream "ticket.events" using executeRaw
    g. Returns TicketResponseData DTO
 6. Notification Service:
-   a. SubscribeTicketEvents (Artisan Command) listens on "ticket.created"
-   b. Receives the JSON payload via Predis (read_write_timeout: 0)
+   a. redis:consume-ticket-stream (Artisan Command) listens on "ticket.events"
+   b. Receives the JSON payload via Redis Streams
    c. Creates Notification entity
    d. FileNotificationRepository persists to JSON file
 7. Client queries GET /api/notifications via API Gateway
@@ -263,4 +284,4 @@ docker-compose logs -f
 
 ## Conclusion
 
-This project demonstrates a microservices architecture using Laravel, Docker and Redis Pub/Sub, following DDD principles to keep the codebase organized and scalable. The API Gateway centralizes all requests with authentication and rate limiting, while independent services communicate through events, enabling decoupled evolution and independent deployment of each service.
+This project demonstrates a microservices architecture using Laravel, Docker and Redis Streams, following DDD principles to keep the codebase organized and scalable. The API Gateway centralizes all requests with authentication and rate limiting, while independent services communicate through events, enabling decoupled evolution and independent deployment of each service.
