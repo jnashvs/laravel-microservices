@@ -28,12 +28,18 @@ class SendTicketNotificationJob implements ShouldQueue
     public function __construct(
         private readonly string $type,
         private readonly string $messageText,
-        private readonly string $referenceId
+        private readonly string $referenceId,
+        private readonly ?string $requestId = null
     ) {
     }
 
     public function handle(): void
     {
+        if ($this->requestId) {
+            app()->instance('request_id', $this->requestId);
+            Log::withContext(['request_id' => $this->requestId]);
+        }
+
         try {
             Mail::to(config('mail.from.address', 'admin@example.com'))
                 ->send(new TicketNotificationMail(

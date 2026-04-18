@@ -15,11 +15,21 @@ abstract class BaseServiceProxy
 
     protected function getHeaders(): array
     {
-        return [
+        $headers = [
             'Accept' => 'application/json',
             'X-Forwarded-By' => 'api-gateway',
-            'X-Correlation-ID' => request()->header('X-Correlation-ID'),
         ];
+
+        if (app()->bound('request_id')) {
+            $headers['X-Request-ID'] = app('request_id');
+        }
+
+        $traceparent = request()->header('traceparent');
+        if ($traceparent) {
+            $headers['traceparent'] = $traceparent;
+        }
+
+        return $headers;
     }
 
     protected function get(string $path, array $headers = []): Response

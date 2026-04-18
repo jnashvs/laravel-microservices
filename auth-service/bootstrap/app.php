@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CorrelationIdMiddleware;
 use App\Http\Middleware\DenyPassportDirectAccess;
 use App\Http\Middleware\EnsureInternalRequest;
 use Illuminate\Foundation\Application;
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->prepend(CorrelationIdMiddleware::class);
         $middleware->alias([
             'internal' => EnsureInternalRequest::class,
         ]);

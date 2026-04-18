@@ -5,6 +5,7 @@ namespace Infrastructure\Events;
 use Domain\Ticket\Events\EventPublisherInterface;
 use Illuminate\Contracts\Redis\Factory as RedisFactory;
 use Illuminate\Contracts\Redis\Connection;
+use Illuminate\Support\Facades\Log;
 
 class RedisStreamEventPublisher implements EventPublisherInterface
 {
@@ -18,18 +19,19 @@ class RedisStreamEventPublisher implements EventPublisherInterface
 
     public function publish(string $eventName, array $payload): void
     {
-        $correlationId = request()->header('X-Correlation-ID');
-
-        // Use executeRaw to have full control over the command and avoid argument confusion
-        // XADD stream_key ID field1 value1 field2 value2 ...
-        // Note: We use the connection from the factory which supports executeRaw
         $this->redis->executeRaw([
             'XADD',
             'ticket.events',
             '*',
             'event', $eventName,
-            'correlation_id', $correlationId,
+            'request_id', $payload['request_id'] ?? null,
+            'traceparent', $payload['traceparent'] ?? null,
             'payload', json_encode($payload, JSON_THROW_ON_ERROR),
+        ]);
+
+        Log::info('event_published', [
+            'event' => $eventName,
+            'request_id' => $payload['request_id'] ?? null,
         ]);
     }
 }

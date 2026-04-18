@@ -44,3 +44,193 @@ Como arquiteto sénior, analisei a estrutura atual dos teus três microserviços
   - **Sugestão**: Implementar testes de contrato para garantir que uma mudança no JSON do `ticket-service` não "quebre" o `notification-service` inesperadamente.
 
 **Qual destas áreas gostarias de explorar ou implementar primeiro?** Recomendo vivamente começar pelo **Correlation ID** (para visibilidade) ou pelas **Queues no Notification Service** (para performance).
+
+prompt:
+
+You are a senior backend engineer and systems architect.
+
+I have a Laravel microservices architecture with API Gateway + multiple services (ticket-service, notification-service), running with Docker.
+
+I want to implement **centralized logging + distributed tracing + correlation between logs across services**.
+
+Here is my project structure:
+
+## Project Structure
+
+```bash
+laravel-microservices/
+├── docker-compose.yml
+├── .env
+│
+├── api-gateway/
+│   ├── app/
+│   │   ├── Http/
+│   │   │   ├── Controllers/
+│   │   │   │   ├── HealthController.php
+│   │   │   │   ├── TicketProxyController.php
+│   │   │   │   └── NotificationProxyController.php
+│   │   │   └── Middleware/
+│   │   │       ├── AuthenticateApiKey.php
+│   │   │       └── RateLimitMiddleware.php
+│   │   ├── Services/
+│   │   │   ├── BaseServiceProxy.php
+│   │   │   ├── TicketServiceProxy.php
+│   │   │   └── NotificationServiceProxy.php
+│   │   └── Exceptions/
+│   │       └── ServiceUnavailableException.php
+│   ├── resources/views/dashboard.blade.php
+│   ├── routes/api.php
+│   └── Dockerfile
+│
+├── ticket-service/
+│   ├── app/
+│   │   ├── Domain/
+│   │   │   └── Ticket/
+│   │   │       ├── Entities/Ticket.php
+│   │   │       ├── ValueObjects/Priority.php
+│   │   │       ├── ValueObjects/TicketStatus.php
+│   │   │       ├── Events/TicketCreated.php
+│   │   │       ├── Events/EventDispatcherInterface.php
+│   │   │       ├── Events/EventListenerInterface.php
+│   │   │       └── Repositories/TicketRepositoryInterface.php
+│   │   ├── Application/
+│   │   │   └── Ticket/
+│   │   │       ├── DTOs/CreateTicketData.php
+│   │   │       ├── DTOs/TicketResponseData.php
+│   │   │       ├── UseCases/CreateTicketUseCase.php
+│   │   │       ├── UseCases/ListTicketsUseCase.php
+│   │   │       ├── UseCases/GetTicketUseCase.php
+│   │   │       └── Exceptions/
+│   │   │           ├── TicketCreationException.php
+│   │   │           └── TicketNotFoundException.php
+│   │   ├── Infrastructure/
+│   │   │   ├── Http/Controllers/TicketController.php
+│   │   │   ├── Repositories/EloquentTicketRepository.php
+│   │   │   ├── Events/SimpleEventDispatcher.php
+│   │   │   ├── Events/RedisStreamEventPublisher.php
+│   │   │   └── Listeners/PublishTicketCreatedListener.php
+│   │   ├── Providers/
+│   │   │   ├── AppServiceProvider.php
+│   │   │   └── EventServiceProvider.php
+│   │   └── Models/Ticket.php
+│   ├── database/migrations/
+│   ├── routes/api.php
+│   └── Dockerfile
+│
+├── notification-service/
+│   ├── app/
+│   │   ├── Domain/
+│   │   │   └── Notification/
+│   │   │       ├── Entities/Notification.php
+│   │   │       └── Repositories/NotificationRepositoryInterface.php
+│   │   ├── Application/
+│   │   │   └── Notification/
+│   │   │       └── UseCases/CreateNotificationUseCase.php
+│   │   ├── Infrastructure/
+│   │   │   ├── Http/Controllers/NotificationController.php
+│   │   │   └── Repositories/FileNotificationRepository.php
+│   │   └── Console/Commands/
+│   │       └── SubscribeTicketEvents.php
+│   ├── routes/api.php
+│   └── Dockerfile
+```
+
+---
+
+---
+
+## My goal
+
+I want a **production-ready observability setup** that includes:
+
+1. Correlation ID propagation across all services
+2. Structured logging (JSON)
+3. Centralized logging
+4. Distributed tracing
+5. Ability to debug a single request across all services
+
+---
+
+## What I want from you
+
+Give me a **step-by-step implementation plan**, with **real Laravel code**, not just concepts.
+
+Be very practical and opinionated.
+
+---
+
+## Requirements
+
+### 1. Correlation ID
+
+- Middleware for API Gateway and all services
+- Automatically generate `X-Request-ID` if missing
+- Propagate it to downstream services
+- Inject into all logs
+
+### 2. Logging
+
+- Configure Laravel (Monolog) to output JSON logs
+- Include:
+
+  - request_id
+  - service_name
+  - timestamp
+  - context data
+
+### 3. Centralized logging
+
+- Use Grafana Loki (via Docker)
+- Show:
+
+  - docker-compose setup
+  - how logs are shipped (Promtail or alternative)
+
+### 4. Distributed tracing
+
+- Use OpenTelemetry
+- Show how to:
+
+  - instrument Laravel
+  - propagate trace headers
+  - visualize with Jaeger
+
+### 5. API Gateway responsibilities
+
+- Inject correlation ID
+- Forward headers correctly
+- Handle errors with proper logging
+
+### 6. Service-to-service communication
+
+- Show how TicketService → NotificationService keeps trace context
+
+### 7. Bonus (important)
+
+- Logging for async events (Redis streams in my case)
+- How to correlate logs from events with the original request
+
+---
+
+## Output format
+
+Structure your answer like this:
+
+1. Architecture overview (diagram optional)
+2. Step-by-step implementation
+3. Code examples (Laravel)
+4. Docker setup (Loki, Promtail, Jaeger)
+5. Common pitfalls
+
+---
+
+## Important
+
+- Do NOT give generic explanations
+- Do NOT skip code
+- Think like you're implementing this in a real production system
+- Optimize for clarity + maintainability
+
+---
+
+If possible, suggest improvements to my architecture.

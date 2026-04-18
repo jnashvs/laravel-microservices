@@ -6,6 +6,7 @@ use App\Exceptions\ServiceUnavailableException;
 use App\Services\TicketServiceProxy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TicketProxyController extends Controller
 {
@@ -20,8 +21,12 @@ class TicketProxyController extends Controller
             $result = $this->ticketService->createTicket($request->all());
 
             return response()->json($result['data'], $result['status']);
-        } catch (ServiceUnavailableException $e) {
-            return $this->serviceUnavailable($e);
+        } catch (\Throwable $e) {
+            Log::error('ticket_service_error', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
     }
 

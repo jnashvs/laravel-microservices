@@ -27,7 +27,12 @@ class NotificationService
         $this->repository->save($notification);
 
         // Dispatch job to queue for async processing
-        SendTicketNotificationJob::dispatch($type, $message, $referenceId);
+        SendTicketNotificationJob::dispatch(
+            $type,
+            $message,
+            $referenceId,
+            app()->bound('request_id') ? app('request_id') : null
+        );
 
         return $notification;
     }

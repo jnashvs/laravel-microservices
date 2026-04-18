@@ -18,9 +18,6 @@ class PublishTicketCreatedListener implements EventListenerInterface
         return $event instanceof TicketCreated;
     }
 
-    /**
-     * @param TicketCreated $event
-     */
     public function handle(object $event): void
     {
         if (!$this->supports($event)) {
@@ -28,13 +25,18 @@ class PublishTicketCreatedListener implements EventListenerInterface
         }
 
         /** @var TicketCreated $event */
-        $this->publisher->publish(TicketCreated::NAME, [
-            'id' => $event->ticket->getId(),
-            'title' => $event->ticket->getTitle(),
-            'description' => $event->ticket->getDescription(),
-            'priority' => $event->ticket->getPriority()->getValue(),
-            'status' => $event->ticket->getStatus()->getValue(),
-            'created_at' => $event->ticket->getCreatedAt(),
-        ]);
+        $this->publisher->publish(
+            TicketCreated::NAME,
+            [
+                'id' => $event->ticketId,
+                'title' => $event->title,
+                'description' => $event->description,
+                'priority' => $event->priority->getValue(),
+                'status' => $event->status->getValue(),
+                'created_at' => $event->createdAt,
+                'request_id' => $event->requestId,
+                'traceparent' => $event->traceparent,
+            ]
+        );
     }
 }

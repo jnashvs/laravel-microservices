@@ -69,20 +69,25 @@ class ConsumeTicketEventsStream extends Command
     private function process($redis, $stream, $group, $id, $fields): void
     {
         try {
-            $correlationId = $fields['correlation_id'] ?? 'N/A';
+            $requestId = $fields['request_id'] ?? null;
+            $traceparent = $fields['traceparent'] ?? null;
 
-            // Log with Correlation ID for tracing
-            Log::info("[NotificationService] Processing event", [
-                'correlation_id' => $correlationId,
-                'event_id' => $id,
-                'event' => $fields['event'] ?? 'unknown'
-            ]);
-
-            $payload = json_decode($fields['payload'], true);
+            $payload = json_decode($fields['payload'] ?? '{}', true);
 
             if (!$payload) {
+                Log::warning('invalid_payload', [
+                    'event_id' => $id,
+                    'fields' => $fields,
+                ]);
                 return;
             }
+
+            $this->restoreContext($requestId, $traceparent);
+
+            Log::info('event_processing_started', [
+                'event_id' => $id,
+                'event' => $fields['event'] ?? 'unknown',
+            ]);
 
             $eventLabel = strtoupper($fields['event'] ?? 'UNKNOWN');
             $title = $payload['title'] ?? 'No Title';
@@ -93,15 +98,35 @@ class ConsumeTicketEventsStream extends Command
             $this->createNotification->execute(
                 type: $fields['event'] ?? 'system',
                 message: $message,
-                referenceId: $payload['id'] ?? 'N/A'
+                referenceId: $payload['ticket_id'] ?? 'N/A'
             );
 
+            // ACK
             $redis->executeRaw(['XACK', $stream, $group, $id]);
 
-            $this->info("Processed message: {$id} (Correlation: {$correlationId})");
+            Log::info('event_processed_successfully', [
+                'event_id' => $id,
+            ]);
 
         } catch (\Throwable $e) {
-            $this->error("Failed processing {$id}: " . $e->getMessage());
+            Log::error('event_processing_failed', [
+                'event_id' => $id,
+                'error' => $e->getMessage(),
+                'fields' => $fields,
+            ]);
         }
+    }
+
+    private function restoreContext(?string $requestId, ?string $traceparent): void
+    {
+        if ($requestId) {
+            app()->instance('request_id', $requestId);
+        }
+
+        Log::withContext([
+            'request_id' => $requestId,
+            'traceparent' => $traceparent,
+            'service' => config('app.name'),
+        ]);
     }
 }
