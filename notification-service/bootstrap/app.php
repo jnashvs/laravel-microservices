@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CorrelationIdMiddleware;
+use App\Http\Middleware\HttpLoggingMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(CorrelationIdMiddleware::class);
+        $middleware->append(HttpLoggingMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

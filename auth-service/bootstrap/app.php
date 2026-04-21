@@ -3,6 +3,7 @@
 use App\Http\Middleware\CorrelationIdMiddleware;
 use App\Http\Middleware\DenyPassportDirectAccess;
 use App\Http\Middleware\EnsureInternalRequest;
+use App\Http\Middleware\HttpLoggingMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(CorrelationIdMiddleware::class);
+        $middleware->append(HttpLoggingMiddleware::class);
         $middleware->alias([
             'internal' => EnsureInternalRequest::class,
         ]);
