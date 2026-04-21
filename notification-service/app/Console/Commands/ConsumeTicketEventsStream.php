@@ -69,29 +69,64 @@ class ConsumeTicketEventsStream extends Command
     private function process($redis, $stream, $group, $id, $fields): void
     {
         try {
-            $payload = json_decode($fields['payload'], true);
+            $requestId = $fields['request_id'] ?? null;
+            $traceparent = $fields['traceparent'] ?? null;
+
+            $payload = json_decode($fields['payload'] ?? '{}', true);
 
             if (!$payload) {
+                Log::warning('invalid_payload', [
+                    'event_id' => $id,
+                    'fields' => $fields,
+                ]);
                 return;
             }
+
+            $this->restoreContext($requestId, $traceparent);
+
+            Log::info('event_processing_started', [
+                'event_id' => $id,
+                'event' => $fields['event'] ?? 'unknown',
+            ]);
 
             $eventLabel = strtoupper($fields['event'] ?? 'UNKNOWN');
             $title = $payload['title'] ?? 'No Title';
             $priority = $payload['priority'] ?? 'normal';
-            
+
             $message = "[{$eventLabel}] Ticket: {$title} | Priority: {$priority}";
 
             $this->createNotification->execute(
                 type: $fields['event'] ?? 'system',
                 message: $message,
-                referenceId: $payload['id'] ?? 'N/A'
+                referenceId: $payload['ticket_id'] ?? 'N/A'
             );
 
+            // ACK
             $redis->executeRaw(['XACK', $stream, $group, $id]);
-            $this->info("Processed message: {$id}");
+
+            Log::info('event_processed_successfully', [
+                'event_id' => $id,
+            ]);
 
         } catch (\Throwable $e) {
-            $this->error("Failed processing {$id}: " . $e->getMessage());
+            Log::error('event_processing_failed', [
+                'event_id' => $id,
+                'error' => $e->getMessage(),
+                'fields' => $fields,
+            ]);
         }
+    }
+
+    private function restoreContext(?string $requestId, ?string $traceparent): void
+    {
+        if ($requestId) {
+            app()->instance('request_id', $requestId);
+        }
+
+        Log::withContext([
+            'request_id' => $requestId,
+            'traceparent' => $traceparent,
+            'service' => config('app.name'),
+        ]);
     }
 }

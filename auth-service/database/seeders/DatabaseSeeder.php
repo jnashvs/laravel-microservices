@@ -15,11 +15,33 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Create Test User
+        User::firstOrCreate(
+            ['email' => 'user@example.com'],
+            [
+                'name' => 'Test User',
+                'password' => \Hash::make('12345678'),
+            ]
+        );
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Ensure Passport client exists with ID and Secret from .env
+        $clientId = config('services.passport.client_id');
+        $clientSecret = config('services.passport.client_secret');
+
+        if ($clientId && $clientSecret) {
+            \DB::table('oauth_clients')->updateOrInsert(
+                ['id' => $clientId],
+                [
+                    'name' => 'Password Grant Client',
+                    'secret' => \Hash::make($clientSecret),
+                    'provider' => 'users',
+                    'redirect_uris' => '["http://localhost"]',
+                    'grant_types' => '["password","refresh_token"]',
+                    'revoked' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
     }
 }

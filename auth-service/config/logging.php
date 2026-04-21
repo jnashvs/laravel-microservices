@@ -54,8 +54,17 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+            'channels' => ['json'],
+        ],
+
+        'json' => [
+            'driver' => 'monolog',
+            'handler' => Monolog\Handler\StreamHandler::class,
+            'formatter' => Monolog\Formatter\JsonFormatter::class,
+            'with' => [
+                'stream' => 'php://stdout',
+            ],
+            'tap' => [App\Logging\AddContextProcessor::class],
         ],
 
         'single' => [

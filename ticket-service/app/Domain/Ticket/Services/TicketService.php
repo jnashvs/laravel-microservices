@@ -30,7 +30,16 @@ class TicketService
         $this->repository->save($ticket);
 
         $this->eventDispatcher->dispatch(
-            new TicketCreated($ticket)
+            new TicketCreated(
+                ticketId: $ticket->getId(),
+                title: $ticket->getTitle(),
+                description: $ticket->getDescription(),
+                priority: $ticket->getPriority(),
+                status: $ticket->getStatus(),
+                createdAt: $ticket->getCreatedAt(),
+                requestId: app('request_id'),
+                traceparent: request()->header('traceparent')
+            )
         );
 
         return $ticket;

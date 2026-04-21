@@ -4,8 +4,7 @@ namespace Domain\Notification\Services;
 
 use Domain\Notification\Entities\Notification;
 use Domain\Notification\Repositories\NotificationRepositoryInterface;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\TicketNotificationMail;
+use App\Jobs\SendTicketNotificationJob;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -27,18 +26,14 @@ class NotificationService
 
         $this->repository->save($notification);
 
-        $this->sendEmail($type, $message, $referenceId);
+        // Dispatch job to queue for async processing
+        SendTicketNotificationJob::dispatch(
+            $type,
+            $message,
+            $referenceId,
+            app()->bound('request_id') ? app('request_id') : null
+        );
 
         return $notification;
-    }
-
-    private function sendEmail(string $type, string $message, string $referenceId): void
-    {
-        try {
-            Mail::to(config('mail.from.address'))
-                ->send(new TicketNotificationMail($type, $message, $referenceId));
-        } catch (\Exception $e) {
-            Log::error("Failed to send notification email: {$e->getMessage()}");
-        }
     }
 }

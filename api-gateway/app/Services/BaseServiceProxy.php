@@ -15,10 +15,21 @@ abstract class BaseServiceProxy
 
     protected function getHeaders(): array
     {
-        return [
+        $headers = [
             'Accept' => 'application/json',
             'X-Forwarded-By' => 'api-gateway',
         ];
+
+        if (app()->bound('request_id')) {
+            $headers['X-Request-ID'] = app('request_id');
+        }
+
+        $traceparent = request()->header('traceparent');
+        if ($traceparent) {
+            $headers['traceparent'] = $traceparent;
+        }
+
+        return $headers;
     }
 
     protected function get(string $path, array $headers = []): Response
@@ -31,7 +42,7 @@ abstract class BaseServiceProxy
         return $this->request('post', $path, $data, $headers);
     }
 
-    private function request(string $method, string $path, array $data = [], array $headers = []): Response
+    protected function request(string $method, string $path, array $data = [], array $headers = []): Response
     {
         $url = rtrim($this->getBaseUrl(), '/') . '/' . ltrim($path, '/');
 
